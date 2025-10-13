@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  transaction-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ApiKey=my-secure-api-key-12345
+      - BankA__BaseUrl=https://banka-api.example.com
+      - BankB__BaseUrl=https://bankb-api.example.com
+      - BankC__BaseUrl=https://bankc-api.example.com
+    depends_on:
+      - redis
+    networks:
+      - transaction-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - transaction-network
+    command: redis-server --appendonly yes
+
+networks:
+  transaction-network:
+    driver: bridge
+
+volumes:
+  redis-data:
