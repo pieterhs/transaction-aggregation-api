@@ -23,7 +23,7 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddMemoryCache();
 
 // Register TransactionCache
-builder.Services.AddSingleton<TransactionCache>();
+builder.Services.AddSingleton<ITransactionCache, TransactionCache>();
 
 // Register TransactionService
 builder.Services.AddScoped<TransactionService>();

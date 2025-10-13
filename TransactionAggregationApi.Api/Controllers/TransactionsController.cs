@@ -27,9 +27,9 @@ public class TransactionsController : ControllerBase
     /// <param name="category">Optional category filter</param>
     /// <param name="page">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 50, max: 100)</param>
-    /// <returns>List of transactions</returns>
+    /// <returns>Paged list of transactions</returns>
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<TransactionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResultDto<TransactionDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetTransactions(
@@ -45,31 +45,19 @@ public class TransactionsController : ControllerBase
             var fromDate = from ?? DateTime.UtcNow.AddDays(-30);
             var toDate = to ?? DateTime.UtcNow;
 
-            // Validate dates
-            if (fromDate > toDate)
-            {
-                return BadRequest("'from' date must be before 'to' date");
-            }
-
-            // Validate pagination
-            if (page < 1)
-            {
-                return BadRequest("Page must be greater than 0");
-            }
-
-            if (pageSize < 1 || pageSize > 100)
-            {
-                return BadRequest("Page size must be between 1 and 100");
-            }
-
             _logger.LogInformation(
                 "Getting transactions from {From} to {To}, category: {Category}, page: {Page}, pageSize: {PageSize}",
                 fromDate, toDate, category ?? "all", page, pageSize);
 
-            var transactions = await _transactionService.GetTransactionsAsync(
+            var result = await _transactionService.GetTransactionsAsync(
                 fromDate, toDate, category, page, pageSize);
 
-            return Ok(transactions);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid request parameters");
+            return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {

@@ -11,7 +11,7 @@ public class TransactionServiceTests
 {
     private readonly Mock<IBankClient> _mockBankAClient;
     private readonly Mock<IBankClient> _mockBankBClient;
-    private readonly Mock<TransactionCache> _mockCache;
+    private readonly Mock<ITransactionCache> _mockCache;
     private readonly Mock<ILogger<TransactionService>> _mockLogger;
     private readonly TransactionService _transactionService;
 
@@ -19,7 +19,7 @@ public class TransactionServiceTests
     {
         _mockBankAClient = new Mock<IBankClient>();
         _mockBankBClient = new Mock<IBankClient>();
-        _mockCache = new Mock<TransactionCache>(MockBehavior.Loose, null!, null!);
+        _mockCache = new Mock<ITransactionCache>();
         _mockLogger = new Mock<ILogger<TransactionService>>();
 
         _mockBankAClient.Setup(x => x.BankName).Returns("BankA");
@@ -88,7 +88,8 @@ public class TransactionServiceTests
 
         // Assert
         Assert.NotNull(result);
-        var transactions = result.ToList();
+        Assert.Equal(2, result.Total);
+        var transactions = result.Transactions.ToList();
         Assert.Equal(2, transactions.Count);
         Assert.Contains(transactions, t => t.Source == "BankA");
         Assert.Contains(transactions, t => t.Source == "BankB");
@@ -145,7 +146,8 @@ public class TransactionServiceTests
 
         // Assert
         Assert.NotNull(result);
-        var transactions = result.ToList();
+        Assert.Equal(1, result.Total);
+        var transactions = result.Transactions.ToList();
         Assert.Single(transactions);
         Assert.Equal("Groceries", transactions[0].Category);
     }
@@ -188,7 +190,10 @@ public class TransactionServiceTests
 
         // Assert
         Assert.NotNull(result);
-        var transactions = result.ToList();
+        Assert.Equal(10, result.Total);
+        Assert.Equal(2, result.Page);
+        Assert.Equal(3, result.PageSize);
+        var transactions = result.Transactions.ToList();
         Assert.Equal(3, transactions.Count);
     }
 }

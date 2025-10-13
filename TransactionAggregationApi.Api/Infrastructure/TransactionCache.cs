@@ -2,7 +2,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace TransactionAggregationApi.Api.Infrastructure;
 
-public class TransactionCache
+public class TransactionCache : ITransactionCache
 {
     private readonly IMemoryCache _cache;
     private readonly ILogger<TransactionCache> _logger;
