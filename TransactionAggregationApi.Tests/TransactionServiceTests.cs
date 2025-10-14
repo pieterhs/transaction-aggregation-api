@@ -74,14 +74,15 @@ public class TransactionServiceTests
             .Setup(x => x.GetTransactionsAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<string?>()))
             .ReturnsAsync(bankBTransactions.AsReadOnly());
 
-        // Mock cache to return null (cache miss)
+        // Mock cache to return null (cache miss) on GetAsync
         _mockCache
-            .Setup(x => x.GetOrCreateAsync(
-                It.IsAny<string>(),
-                It.IsAny<Func<Task<IEnumerable<TransactionDto>>>>(),
-                It.IsAny<TimeSpan?>()))
-            .Returns(async (string key, Func<Task<IEnumerable<TransactionDto>>> factory, TimeSpan? expiration) => 
-                await factory());
+            .Setup(x => x.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync((IReadOnlyList<TransactionDto>?)null);
+
+        // Mock cache SetAsync (verify it's called)
+        _mockCache
+            .Setup(x => x.SetAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<TransactionDto>>(), It.IsAny<TimeSpan>()))
+            .Returns(Task.CompletedTask);
 
         // Act
         var result = await _transactionService.GetTransactionsAsync(from, to);
@@ -134,12 +135,12 @@ public class TransactionServiceTests
             .ReturnsAsync(new List<TransactionDto>().AsReadOnly());
 
         _mockCache
-            .Setup(x => x.GetOrCreateAsync(
-                It.IsAny<string>(),
-                It.IsAny<Func<Task<IEnumerable<TransactionDto>>>>(),
-                It.IsAny<TimeSpan?>()))
-            .Returns(async (string key, Func<Task<IEnumerable<TransactionDto>>> factory, TimeSpan? expiration) => 
-                await factory());
+            .Setup(x => x.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync((IReadOnlyList<TransactionDto>?)null);
+
+        _mockCache
+            .Setup(x => x.SetAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<TransactionDto>>(), It.IsAny<TimeSpan>()))
+            .Returns(Task.CompletedTask);
 
         // Act
         var result = await _transactionService.GetTransactionsAsync(from, to, category);
@@ -178,12 +179,12 @@ public class TransactionServiceTests
             .ReturnsAsync(new List<TransactionDto>().AsReadOnly());
 
         _mockCache
-            .Setup(x => x.GetOrCreateAsync(
-                It.IsAny<string>(),
-                It.IsAny<Func<Task<IEnumerable<TransactionDto>>>>(),
-                It.IsAny<TimeSpan?>()))
-            .Returns(async (string key, Func<Task<IEnumerable<TransactionDto>>> factory, TimeSpan? expiration) => 
-                await factory());
+            .Setup(x => x.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync((IReadOnlyList<TransactionDto>?)null);
+
+        _mockCache
+            .Setup(x => x.SetAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<TransactionDto>>(), It.IsAny<TimeSpan>()))
+            .Returns(Task.CompletedTask);
 
         // Act
         var result = await _transactionService.GetTransactionsAsync(from, to, null, page: 2, pageSize: 3);

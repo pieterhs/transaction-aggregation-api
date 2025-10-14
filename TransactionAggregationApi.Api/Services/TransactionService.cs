@@ -66,12 +66,23 @@ public class TransactionService
                 "Processing transaction request: From={From}, To={To}, Category={Category}, Page={Page}, PageSize={PageSize}, CacheKey={CacheKey}",
                 from, to, category ?? "all", page, pageSize, cacheKey);
 
-            // TODO: Track cache hit/miss metrics here
-            var allTransactions = await _cache.GetOrCreateAsync(
-                cacheKey,
-                async () => await FetchTransactionsFromBanksAsync(from, to),
-                TimeSpan.FromMinutes(10)
-            );
+            // Try to get from cache first
+            var allTransactions = await _cache.GetAsync(cacheKey);
+
+            // Cache miss - fetch from banks and cache the result
+            if (allTransactions == null)
+            {
+                _logger.LogDebug("Cache miss - fetching from banks");
+                var fetchedTransactions = await FetchTransactionsFromBanksAsync(from, to);
+                
+                if (fetchedTransactions != null && fetchedTransactions.Any())
+                {
+                    // Convert to read-only list and cache
+                    var transactionList = fetchedTransactions.ToList().AsReadOnly();
+                    await _cache.SetAsync(cacheKey, transactionList, TransactionCache.GetDefaultTtl());
+                    allTransactions = transactionList;
+                }
+            }
 
             if (allTransactions == null || !allTransactions.Any())
             {
@@ -304,6 +315,8 @@ public class TransactionService
 
     /// <summary>
     /// Generates a cache key based on query parameters.
+    /// Uses TransactionCache.BuildCacheKey for consistency.
+    /// Pattern: transactions:{userId}:{from:yyyyMMdd}-{to:yyyyMMdd}:{category}:{page}:{pageSize}
     /// </summary>
     private static string GenerateCacheKey(
         string? userId,
@@ -313,10 +326,7 @@ public class TransactionService
         int page,
         int pageSize)
     {
-        var userPart = string.IsNullOrWhiteSpace(userId) ? "global" : userId;
-        var categoryPart = string.IsNullOrWhiteSpace(category) ? "all" : category.ToLowerInvariant();
-        
-        return $"txn:{userPart}:{from:yyyyMMdd}:{to:yyyyMMdd}:{categoryPart}:{page}:{pageSize}";
+        return TransactionCache.BuildCacheKey(userId, from, to, category, page, pageSize);
     }
 
     /// <summary>

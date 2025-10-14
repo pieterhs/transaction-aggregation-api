@@ -19,11 +19,12 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Add memory cache
+// Add memory cache (thread-safe, singleton by default)
 builder.Services.AddMemoryCache();
 
-// Register TransactionCache
-builder.Services.AddSingleton<ITransactionCache, TransactionCache>();
+// Register TransactionCache as scoped
+// TODO: When migrating to Redis, use AddStackExchangeRedisCache() or AddDistributedMemoryCache()
+builder.Services.AddScoped<ITransactionCache, TransactionCache>();
 
 // Register TransactionService
 builder.Services.AddScoped<TransactionService>();
