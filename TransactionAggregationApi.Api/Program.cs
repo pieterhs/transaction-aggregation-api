@@ -26,8 +26,8 @@ builder.Services.AddMemoryCache();
 // TODO: When migrating to Redis, use AddStackExchangeRedisCache() or AddDistributedMemoryCache()
 builder.Services.AddScoped<ITransactionCache, TransactionCache>();
 
-// Register TransactionService
-builder.Services.AddScoped<TransactionService>();
+// Register TransactionService with interface for better testability
+builder.Services.AddScoped<ITransactionService, TransactionService>();
 
 // Configure Polly policies for HttpClient
 // Retry policy: 3 retries with exponential backoff

@@ -10,7 +10,7 @@ namespace TransactionAggregationApi.Api.Services;
 /// Service for aggregating customer transactions from multiple banking systems.
 /// Implements caching, resilience patterns, and concurrent data fetching.
 /// </summary>
-public class TransactionService
+public class TransactionService : ITransactionService
 {
     private readonly IEnumerable<IBankClient> _bankClients;
     private readonly ITransactionCache _cache;
