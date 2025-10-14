@@ -28,32 +28,46 @@ builder.Services.AddSingleton<ITransactionCache, TransactionCache>();
 // Register TransactionService
 builder.Services.AddScoped<TransactionService>();
 
-// Configure Polly retry policy for HttpClient
+// Configure Polly policies for HttpClient
+// Retry policy: 3 retries with exponential backoff
 var retryPolicy = HttpPolicyExtensions
     .HandleTransientHttpError()
     .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
 
-// Register Bank Clients with HttpClient and Polly
+// Circuit breaker: Open after 5 consecutive failures, reset after 30s
+var circuitBreakerPolicy = HttpPolicyExtensions
+    .HandleTransientHttpError()
+    .CircuitBreakerAsync(
+        handledEventsAllowedBeforeBreaking: 5,
+        durationOfBreak: TimeSpan.FromSeconds(30));
+
+// Register Bank Clients with HttpClient and Polly resilience policies
 builder.Services.AddHttpClient<IBankClient, BankAClient>(client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("BankA:BaseUrl") ?? "https://banka-api.example.com");
+    client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("BankA:BaseUrl") ?? "https://api.banka.com");
     client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "TransactionAggregationAPI/1.0");
 })
-.AddPolicyHandler(retryPolicy);
+.AddPolicyHandler(retryPolicy)
+.AddPolicyHandler(circuitBreakerPolicy);
 
 builder.Services.AddHttpClient<IBankClient, BankBClient>(client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("BankB:BaseUrl") ?? "https://bankb-api.example.com");
+    client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("BankB:BaseUrl") ?? "https://api.bankb.eu");
     client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "TransactionAggregationAPI/1.0");
 })
-.AddPolicyHandler(retryPolicy);
+.AddPolicyHandler(retryPolicy)
+.AddPolicyHandler(circuitBreakerPolicy);
 
 builder.Services.AddHttpClient<IBankClient, BankCClient>(client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("BankC:BaseUrl") ?? "https://bankc-api.example.com");
+    client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("BankC:BaseUrl") ?? "https://api.bankc.asia");
     client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "TransactionAggregationAPI/1.0");
 })
-.AddPolicyHandler(retryPolicy);
+.AddPolicyHandler(retryPolicy)
+.AddPolicyHandler(circuitBreakerPolicy);
 
 var app = builder.Build();
 

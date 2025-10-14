@@ -22,8 +22,8 @@ public class TransactionServiceTests
         _mockCache = new Mock<ITransactionCache>();
         _mockLogger = new Mock<ILogger<TransactionService>>();
 
-        _mockBankAClient.Setup(x => x.BankName).Returns("BankA");
-        _mockBankBClient.Setup(x => x.BankName).Returns("BankB");
+        _mockBankAClient.Setup(x => x.Name).Returns("BankA");
+        _mockBankBClient.Setup(x => x.Name).Returns("BankB");
 
         var bankClients = new List<IBankClient> { _mockBankAClient.Object, _mockBankBClient.Object };
         
@@ -67,12 +67,12 @@ public class TransactionServiceTests
         };
 
         _mockBankAClient
-            .Setup(x => x.GetTransactionsAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
-            .ReturnsAsync(bankATransactions);
+            .Setup(x => x.GetTransactionsAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<string?>()))
+            .ReturnsAsync(bankATransactions.AsReadOnly());
 
         _mockBankBClient
-            .Setup(x => x.GetTransactionsAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
-            .ReturnsAsync(bankBTransactions);
+            .Setup(x => x.GetTransactionsAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<string?>()))
+            .ReturnsAsync(bankBTransactions.AsReadOnly());
 
         // Mock cache to return null (cache miss)
         _mockCache
@@ -126,12 +126,12 @@ public class TransactionServiceTests
         };
 
         _mockBankAClient
-            .Setup(x => x.GetTransactionsAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
-            .ReturnsAsync(allTransactions);
+            .Setup(x => x.GetTransactionsAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<string?>()))
+            .ReturnsAsync(allTransactions.AsReadOnly());
 
         _mockBankBClient
-            .Setup(x => x.GetTransactionsAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
-            .ReturnsAsync(new List<TransactionDto>());
+            .Setup(x => x.GetTransactionsAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<string?>()))
+            .ReturnsAsync(new List<TransactionDto>().AsReadOnly());
 
         _mockCache
             .Setup(x => x.GetOrCreateAsync(
@@ -170,12 +170,12 @@ public class TransactionServiceTests
         }).ToList();
 
         _mockBankAClient
-            .Setup(x => x.GetTransactionsAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
-            .ReturnsAsync(allTransactions);
+            .Setup(x => x.GetTransactionsAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<string?>()))
+            .ReturnsAsync(allTransactions.AsReadOnly());
 
         _mockBankBClient
-            .Setup(x => x.GetTransactionsAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
-            .ReturnsAsync(new List<TransactionDto>());
+            .Setup(x => x.GetTransactionsAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<string?>()))
+            .ReturnsAsync(new List<TransactionDto>().AsReadOnly());
 
         _mockCache
             .Setup(x => x.GetOrCreateAsync(

@@ -151,7 +151,7 @@ public class TransactionService
         DateTime from, 
         DateTime to)
     {
-        var bankName = client.BankName;
+        var bankName = client.Name;
         var startTime = DateTimeOffset.UtcNow;
 
         try
@@ -161,14 +161,14 @@ public class TransactionService
             // Execute with resilience policy (retry, circuit breaker, timeout)
             var transactions = await _resiliencePolicy.ExecuteAsync(async () =>
             {
-                return await client.GetTransactionsAsync(from, to);
+                return await client.GetTransactionsAsync(from, to, category: null);
             });
 
             var elapsedMs = (DateTimeOffset.UtcNow - startTime).TotalMilliseconds;
 
             _logger.LogInformation(
                 "Successfully fetched {Count} transactions from {BankName} in {ElapsedMs}ms",
-                transactions.Count(),
+                transactions.Count,
                 bankName,
                 elapsedMs);
 
