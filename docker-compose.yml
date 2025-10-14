@@ -1,36 +1,153 @@
+# ============================================================
+# Docker Compose - Transaction Aggregation API
+# ============================================================
+# Services:
+#   - api: .NET 8 Web API (Transaction Aggregation)
+#   - redis: Redis 7 (Future: Distributed caching)
+#
+# Usage:
+#   Build:  docker-compose build
+#   Run:    docker-compose up
+#   Stop:   docker-compose down
+#   Logs:   docker-compose logs -f api
+#
+# Endpoints:
+#   Swagger:      http://localhost:8080/
+#   Health:       http://localhost:8080/health
+#   Metrics:      http://localhost:8080/api/metrics
+#   Transactions: http://localhost:8080/api/transactions
+# ============================================================
+
 version: '3.8'
 
 services:
-  transaction-api:
+  # ============================================================
+  # Transaction Aggregation API
+  # ============================================================
+  api:
+    container_name: transaction-api
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: transaction-aggregation-api:latest
     ports:
       - "8080:8080"
     environment:
+      # ASP.NET Core Configuration
       - ASPNETCORE_ENVIRONMENT=Development
-      - ApiKey=my-secure-api-key-12345
+      - ASPNETCORE_URLS=http://+:8080
+      
+      # API Key for authentication (X-Api-Key header)
+      - ApiKey=dev-api-key-12345
+      
+      # Logging Configuration
+      - Logging__LogLevel__Default=Information
+      - Logging__LogLevel__Microsoft.AspNetCore=Warning
+      
+      # Cache Configuration (In-Memory for now, Redis support ready)
+      - Cache__DefaultExpirationMinutes=10
+      - Cache__SlidingExpiration=true
+      
+      # Future: Redis Configuration (when implementing IDistributedCache)
+      # - ConnectionStrings__Redis=redis:6379
+      # - Cache__Provider=Redis
+      
+      # Bank API Configuration (Mock endpoints)
       - BankA__BaseUrl=https://banka-api.example.com
       - BankB__BaseUrl=https://bankb-api.example.com
       - BankC__BaseUrl=https://bankc-api.example.com
+      
+      # Polly Resilience Configuration
+      - Resilience__RetryCount=3
+      - Resilience__CircuitBreakerThreshold=5
+      - Resilience__TimeoutSeconds=30
+    
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+    
     networks:
       - transaction-network
+    
+    # Health check using the /health endpoint
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Resource limits (optional, recommended for production)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
 
+  # ============================================================
+  # Redis - Distributed Cache (Future Enhancement)
+  # ============================================================
   redis:
+    container_name: transaction-redis
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    
     volumes:
       - redis-data:/data
+    
     networks:
       - transaction-network
-    command: redis-server --appendonly yes
+    
+    # Redis configuration for persistence
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    
+    # Health check for Redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
+# ============================================================
+# Networks
+# ============================================================
 networks:
   transaction-network:
     driver: bridge
+    name: transaction-network
 
+# ============================================================
+# Volumes
+# ============================================================
 volumes:
   redis-data:
+    driver: local
+    name: transaction-redis-data

@@ -1,3 +1,5 @@
+using System.Reflection;
+using Microsoft.OpenApi.Models;
 using Polly;
 using Polly.Extensions.Http;
 using TransactionAggregationApi.Api.Clients;
@@ -10,14 +12,62 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+
+// Configure Swagger/OpenAPI with comprehensive documentation
+builder.Services.AddSwaggerGen(options =>
 {
-    c.SwaggerDoc("v1", new() { 
-        Title = "Transaction Aggregation API", 
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Transaction Aggregation API",
         Version = "v1",
-        Description = "API for aggregating transactions from multiple banks"
+        Description = "Aggregates customer transactions from multiple mock banking systems with caching, resilience patterns, and API key authentication.",
+        Contact = new OpenApiContact
+        {
+            Name = "API Support",
+            Email = "support@transactionapi.com"
+        },
+        License = new OpenApiLicense
+        {
+            Name = "MIT License",
+            Url = new Uri("https://opensource.org/licenses/MIT")
+        }
+    });
+
+    // Include XML comments for enhanced documentation
+    var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFilename);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath);
+    }
+
+    // Add API Key authentication scheme to Swagger UI
+    options.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.ApiKey,
+        In = ParameterLocation.Header,
+        Name = "X-Api-Key",
+        Description = "API Key authentication. Enter your API key in the field below."
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "ApiKey"
+                }
+            },
+            Array.Empty<string>()
+        }
     });
 });
+
+// Add Health Checks
+builder.Services.AddHealthChecks();
 
 // Add memory cache (thread-safe, singleton by default)
 builder.Services.AddMemoryCache();
@@ -73,32 +123,59 @@ builder.Services.AddHttpClient<IBankClient, BankCClient>(client =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
+// Enable Swagger in all environments for API documentation
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Transaction Aggregation API v1");
-    });
-}
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Transaction Aggregation API v1");
+    options.RoutePrefix = string.Empty; // Serve Swagger UI at root (http://localhost:8080/)
+    options.DocumentTitle = "Transaction Aggregation API - Documentation";
+    options.DisplayRequestDuration(); // Show request duration in Swagger UI
+    options.EnableDeepLinking(); // Enable deep linking for operations and tags
+    options.EnableFilter(); // Enable filtering by tags
+    options.ShowExtensions(); // Show vendor extensions
+    options.EnableValidator(); // Enable schema validation
+});
 
 // Add API key authentication middleware (before UseAuthorization)
+// Note: /swagger, /health, and /api/metrics are excluded in AuthMiddleware
 app.UseApiKeyAuth();
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
 
-// Map controllers
+// Map controllers (includes MetricsController)
 app.MapControllers();
 
-// Health check endpoint
-app.MapGet("/health", () => Results.Ok(new
+// Health check endpoint with detailed status
+// Excluded from authentication for monitoring systems
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
-    status = "healthy",
-    timestamp = DateTime.UtcNow,
-    service = "Transaction Aggregation API"
-}))
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var response = new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                duration = e.Value.Duration.TotalMilliseconds
+            }),
+            totalDuration = report.TotalDuration.TotalMilliseconds,
+            timestamp = DateTime.UtcNow
+        };
+        await context.Response.WriteAsJsonAsync(response);
+    }
+})
 .WithName("HealthCheck")
-.WithOpenApi();
+.WithOpenApi(operation =>
+{
+    operation.Summary = "Health check endpoint";
+    operation.Description = "Returns the health status of the API and its dependencies. Used by monitoring systems.";
+    return operation;
+});
 
 app.Run();

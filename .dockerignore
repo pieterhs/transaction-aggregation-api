@@ -1,13 +1,103 @@
+# ============================================================
+# .dockerignore - Exclude files from Docker build context
+# ============================================================
+# Purpose: Reduce build context size and improve build speed
+# Impact: Smaller context = faster uploads to Docker daemon
+# ============================================================
+
+# Docker files
 **/.dockerignore
+**/docker-compose*.yml
+**/Dockerfile*
+
+# Git
 **/.git
 **/.gitignore
+**/.gitattributes
+
+# IDE and Editor files
 **/.vs
 **/.vscode
-**/*.*proj.user
+**/.idea
+**/.DS_Store
+**/*.swp
+**/*.swo
+**/*~
+
+# Build outputs
 **/bin
 **/obj
 **/out
+**/publish
+**/dist
+**/build
+**/.build
+
+# Test outputs
 **/TestResults
-**/.idea
-**/.DS_Store
+**/coverage
+**/*.trx
+**/*.coverage
+**/*.coveragexml
+
+# NuGet
+**/.nuget
+**/packages
+**/*.nupkg
+**/*.snupkg
+
+# User-specific files
+**/*.user
+**/*.suo
+**/*.userosscache
+**/*.sln.docstates
+**/*.userprefs
+
+# Logs and temporary files
+**/logs
+**/*.log
+**/tmp
+**/temp
+**/*.tmp
+
+# Node.js (if any frontend assets)
 **/node_modules
+**/npm-debug.log
+**/yarn-error.log
+**/.npm
+
+# Documentation (exclude from build, include in source control)
+**/README.md
+**/LICENSE
+**/CHANGELOG.md
+**/docs
+**/*.md
+
+# CI/CD
+**/.github
+**/.gitlab
+**/.circleci
+**/.travis.yml
+**/azure-pipelines.yml
+**/Jenkinsfile
+
+# OS files
+**/Thumbs.db
+**/.DS_Store
+**/desktop.ini
+
+# Environment files (security)
+**/.env
+**/.env.*
+!**/.env.example
+
+# Override files
+**/docker-compose.override.yml
+**/appsettings.Development.json
+**/appsettings.*.json
+!**/appsettings.json
+
+# Misc
+**/.editorconfig
+**/.prettierrc
+**/.eslintrc*

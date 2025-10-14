@@ -29,13 +29,14 @@ public class AuthMiddleware
 
     /// <summary>
     /// Invokes the middleware to validate API key authentication.
-    /// Excludes /swagger and /health endpoints from authentication.
+    /// Excludes /swagger, /health, and /api/metrics endpoints from authentication.
     /// </summary>
     public async Task InvokeAsync(HttpContext context)
     {
-        // Skip authentication for Swagger and health check endpoints
+        // Skip authentication for Swagger, health check, and metrics endpoints
         if (context.Request.Path.StartsWithSegments("/swagger") || 
-            context.Request.Path.StartsWithSegments("/health"))
+            context.Request.Path.StartsWithSegments("/health") ||
+            context.Request.Path.StartsWithSegments("/api/metrics", StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogDebug("Skipping authentication for excluded path: {Path}", context.Request.Path);
             await _next(context);
