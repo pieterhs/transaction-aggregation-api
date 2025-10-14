@@ -82,8 +82,8 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// Add custom authentication middleware
-app.UseAuthMiddleware();
+// Add API key authentication middleware (before UseAuthorization)
+app.UseApiKeyAuth();
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
