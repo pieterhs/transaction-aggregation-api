@@ -1,196 +1,510 @@
-# 🏗️ Architecture Overview
+# Transaction Aggregation API
 
-The **Transaction Aggregation API** consolidates customer transactions from multiple mock banking systems into a unified JSON response.  
-It supports **filtering, pagination, authentication, caching, and resilience** — designed for production-grade scalability.
+[![.NET 8](https://img.shields.io/badge/.NET-8.0-blue)](https://dotnet.microsoft.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-51%20passing-success)](https://github.com/pieterhs/transaction-aggregation-api)
 
----
-
-## 🧠 High-Level Design
-
-| Layer | Responsibility | Example Components |
-|-------|----------------|--------------------|
-| **API Layer** | REST endpoints for `/api/transactions` with authentication and Swagger | `TransactionsController`, `AuthMiddleware` |
-| **Application Layer** | Business logic for aggregation, filtering, pagination, caching | `TransactionService`, `TransactionCache` |
-| **Integration Layer** | Parallel queries to multiple mock bank APIs | `BankAClient`, `BankBClient`, `BankCClient` |
-| **Infrastructure** | Observability, caching, resilience, configuration | `Polly Resilience Layer`, `MetricsService` |
+A production-grade REST API that aggregates customer transaction data from multiple mock banking systems and returns a consolidated view with filtering, pagination, caching, and resilience patterns.
 
 ---
 
-## 🗺️ Architectural Diagram
+## 📋 Table of Contents
 
-![Transaction Aggregation API Architecture](./docs/transaction_aggregation_api_architecture_enhanced.png)
-
-**Key Features**
-- **Authentication:** API key middleware to restrict access.  
-- **Caching:** In-memory or Redis cache (TTL ≈ 10 min) to reduce latency.  
-- **Resilience:** Polly policies for retry, rate-limit, and circuit-breaker logic.  
-- **Parallel Aggregation:** `Task.WhenAll()` to fetch from all banks concurrently.  
-- **Observability:** Health and metrics endpoints expose cache hit rate, latency, and request counts.
-
----
-
-## 🔄 Sequence Flow
-
-![Request Lifecycle](./docs/transaction_aggregation_api_sequence_detailed.png)
-
-1. **Client Request:** Authenticated `GET /api/transactions?...`  
-2. **Cache Check:** Immediate return if cached.  
-3. **Resilience & Aggregation:** On miss, Polly guards external calls; parallel tasks fetch transactions.  
-4. **Normalization & Caching:** Responses merged, normalized, cached.  
-5. **Response:** Paginated, consistent JSON schema.  
-6. **Metrics Logged:** Cache statistics and API timing recorded for monitoring.
+- [Features](#-features)
+- [Architecture](#-architecture)
+- [Technology Stack](#-technology-stack)
+- [Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Build & Run with Docker](#build--run-with-docker)
+  - [Build & Run Locally](#build--run-locally)
+- [API Documentation](#-api-documentation)
+- [Authentication](#-authentication)
+- [Testing](#-testing)
+- [Project Structure](#-project-structure)
+- [Production Considerations](#-production-considerations)
+- [Future Enhancements](#-future-enhancements)
 
 ---
 
-## 🔌 Component Interaction
+## ✨ Features
 
-![Component Interaction Diagram](./docs/transaction_aggregation_api_component_interaction.png)
+### Core Requirements (Project Brief)
+- ✅ **REST API** for aggregating transaction data from multiple banking systems
+- ✅ **Date Range Filtering** - Retrieve transactions by from/to dates
+- ✅ **Category Filtering** - Filter by transaction category (Groceries, Entertainment, etc.)
+- ✅ **Pagination Support** - Page-based pagination with configurable page size
+- ✅ **Simple Authentication** - API Key authentication via `X-Api-Key` header
+- ✅ **Consistent JSON Schema** - Standardized response format across all banks
+- ✅ **Production-grade Dockerfile** - Multi-stage Alpine-based build (~110MB)
+- ✅ **Comprehensive README** - Complete build, run, and test documentation
 
-**Flow Summary**
-1. The **Client** sends a request to the **API**.  
-2. **TransactionService** orchestrates filtering, caching, and aggregation.  
-3. **TransactionCache** returns or stores data.  
-4. **Polly Resilience Layer** applies retry and rate-limit safeguards.  
-5. Multiple **Mock Bank APIs** are queried in parallel.  
-6. **Metrics & Observability** collect health, latency, and cache stats.  
-7. **Unified JSON Response** is returned to the client.
+### Additional Production Features
+- 🚀 **Performance**
+  - In-memory caching with TTL (10 minutes default, Redis-ready)
+  - Concurrent bank API calls with `Task.WhenAll`
+  - Optimized Docker layer caching
+  
+- 🛡️ **Resilience & Reliability**
+  - Polly retry policies (exponential backoff, 3 retries)
+  - Circuit breaker pattern (breaks after 5 failures, 30s reset)
+  - Timeout policies (30s per request)
+  - Comprehensive error handling and logging
+  
+- 📊 **Observability**
+  - Health check endpoint (`/health`)
+  - Metrics endpoint (`/api/metrics`) - cache stats, request counts
+  - Structured logging with log levels
+  - Request/response correlation IDs
+  
+- 📖 **Developer Experience**
+  - Swagger/OpenAPI UI with interactive documentation
+  - XML documentation comments
+  - Docker Compose for easy local development
+  - 51 comprehensive unit tests (100% pass rate)
 
 ---
 
-## 🧩 Data Model (simplified)
+## 🏗️ Architecture
 
-```json
-{
-  "id": "uuid",
-  "date": "2025-10-10",
-  "amount": 120.50,
-  "currency": "ZAR",
-  "category": "Food",
-  "source": "BankA"
-}
+The API aggregates transactions from three mock banking systems (Bank A, B, C) through a clean, layered architecture:
+
+```
+┌─────────────┐
+│   Client    │
+└──────┬──────┘
+       │ HTTP + X-Api-Key
+       ▼
+┌─────────────────────────────────────┐
+│     AuthMiddleware (API Key)        │
+└──────────────┬──────────────────────┘
+               ▼
+┌──────────────────────────────────────┐
+│   TransactionsController             │
+│   - GetTransactions (GET)            │
+│   - GetTransactionsMetadata (HEAD)   │
+│   - GetById (GET)                    │
+│   - GetByIds (POST)                  │
+│   - GetCategories (GET)              │
+└───────────────┬──────────────────────┘
+                ▼
+┌───────────────────────────────────────┐
+│     TransactionService                │
+│     - Aggregation Logic               │
+│     - Filtering & Pagination          │
+│     - Caching Strategy                │
+└────────┬──────────────────────────────┘
+         ▼
+┌─────────────────────────────────┐
+│    TransactionCache             │
+│    (In-Memory / Redis)          │
+└─────────────────────────────────┘
+         │
+         ▼ (concurrent)
+┌──────────────────────────────────────────────┐
+│  Bank Clients (with Polly resilience)        │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐      │
+│  │ BankA    │ │ BankB    │ │ BankC    │      │
+│  │ Client   │ │ Client   │ │ Client   │      │
+│  └──────────┘ └──────────┘ └──────────┘      │
+└──────────────────────────────────────────────┘
 ```
 
-Paginated Response:
+### Key Design Patterns
+- **Repository Pattern**: `IBankClient` interface for bank integrations
+- **Dependency Injection**: All services registered and resolved via DI
+- **Middleware Pattern**: Authentication handled via custom middleware
+- **Retry/Circuit Breaker**: Polly policies for transient fault handling
+- **Cache-Aside Pattern**: Check cache → miss → fetch → store → return
+
+---
+
+## 🛠️ Technology Stack
+
+- **Framework**: .NET 8.0 (LTS)
+- **Language**: C# 12
+- **API**: ASP.NET Core Web API
+- **Documentation**: Swagger/OpenAPI
+- **Testing**: xUnit, Moq
+- **Resilience**: Polly (retry, circuit breaker, timeout)
+- **Caching**: IMemoryCache (with Redis support ready)
+- **Containerization**: Docker, Docker Compose
+- **Logging**: Microsoft.Extensions.Logging
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+**Option 1: Docker (Recommended)**
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) (Windows/Mac/Linux)
+
+**Option 2: Local Development**
+- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Any IDE (Visual Studio 2022, VS Code, Rider)
+
+---
+
+### Build & Run with Docker
+
+This is the **easiest and recommended** method:
+
+```powershell
+# 1. Clone the repository
+git clone https://github.com/pieterhs/transaction-aggregation-api.git
+cd transaction-aggregation-api
+
+# 2. Build and run with Docker Compose
+docker-compose up --build
+
+# 3. Access the API
+# Swagger UI:  http://localhost:8080/
+# Health:      http://localhost:8080/health
+# Metrics:     http://localhost:8080/api/metrics
+```
+
+**API Key for Testing**: `dev-api-key-12345` (set in docker-compose.yml)
+
+To stop:
+```powershell
+docker-compose down
+```
+
+---
+
+### Build & Run Locally
+
+For local development without Docker:
+
+```powershell
+# 1. Clone the repository
+git clone https://github.com/pieterhs/transaction-aggregation-api.git
+cd transaction-aggregation-api
+
+# 2. Restore dependencies
+dotnet restore
+
+# 3. Build the project
+dotnet build
+
+# 4. Run the API
+cd TransactionAggregationApi.Api
+dotnet run
+
+# 5. Access the API at http://localhost:5000 (or https://localhost:5001)
+```
+
+**Default API Key**: `prod-api-key-change-in-production` (set in appsettings.json)
+
+---
+
+## 📖 API Documentation
+
+### Interactive Swagger UI
+
+Once running, visit: **http://localhost:8080/** (Docker) or **http://localhost:5000/** (local)
+
+### Endpoints
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `GET` | `/api/transactions` | Get paginated transactions with filters | ✅ |
+| `HEAD` | `/api/transactions` | Get pagination metadata only | ✅ |
+| `GET` | `/api/transactions/{id}` | Get transaction by ID | ✅ |
+| `POST` | `/api/transactions/batch` | Get transactions by IDs (batch) | ✅ |
+| `GET` | `/api/transactions/categories` | Get all available categories | ✅ |
+| `GET` | `/api/metrics` | Get API metrics (cache, requests) | ❌ |
+| `GET` | `/health` | Health check | ❌ |
+
+### Example Request
+
+```bash
+# PowerShell
+$headers = @{ "X-Api-Key" = "dev-api-key-12345" }
+Invoke-RestMethod -Uri "http://localhost:8080/api/transactions?from=2025-10-01&to=2025-10-15&category=Groceries&page=1&pageSize=20" -Headers $headers
+```
+
+```bash
+# cURL
+curl -H "X-Api-Key: dev-api-key-12345" \
+  "http://localhost:8080/api/transactions?from=2025-10-01&to=2025-10-15&category=Groceries&page=1&pageSize=20"
+```
+
+### Example Response
+
 ```json
 {
-  "total": 123,
+  "transactions": [
+    {
+      "id": "TXN-20251005-3782",
+      "amount": 89.42,
+      "currency": "USD",
+      "category": "Groceries",
+      "description": "Whole Foods Market",
+      "date": "2025-10-05T14:23:00",
+      "merchantName": "Whole Foods",
+      "bankSource": "BankA"
+    }
+  ],
   "page": 1,
-  "pageSize": 50,
-  "transactions": [ ... ]
+  "pageSize": 20,
+  "total": 47,
+  "totalPages": 3
+}
+```
+
+### Query Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `from` | DateTime | ✅ | - | Start date (ISO 8601: YYYY-MM-DD) |
+| `to` | DateTime | ✅ | - | End date (ISO 8601: YYYY-MM-DD) |
+| `category` | string | ❌ | null | Filter by category (case-insensitive) |
+| `page` | int | ❌ | 1 | Page number (minimum: 1) |
+| `pageSize` | int | ❌ | 50 | Items per page (range: 1-100) |
+
+### Response Headers
+
+```
+X-Total-Count: 47          # Total matching transactions
+X-Page: 1                  # Current page
+X-PageSize: 20             # Items per page
+X-Total-Pages: 3           # Total pages
+```
+
+---
+
+## 🔐 Authentication
+
+All endpoints (except `/health`, `/swagger`, `/api/metrics`) require API Key authentication:
+
+### Header Format
+```
+X-Api-Key: your-api-key-here
+```
+
+### Default API Keys
+
+- **Docker**: `dev-api-key-12345` (see `docker-compose.yml`)
+- **Local**: `prod-api-key-change-in-production` (see `appsettings.json`)
+
+### Configuration
+
+Set the API key via:
+1. **Environment Variable** (recommended for production):
+   ```powershell
+   $env:ApiKey = "your-secure-key"
+   ```
+
+2. **appsettings.json**:
+   ```json
+   {
+     "ApiKey": "your-secure-key"
+   }
+   ```
+
+3. **Docker Compose**:
+   ```yaml
+   environment:
+     - ApiKey=your-secure-key
+   ```
+
+### Example: Unauthorized (401)
+
+```json
+{
+  "error": "Invalid API key"
 }
 ```
 
 ---
 
-## ⚙️ Optional Enhancements
-- **ETag / Conditional GETs** — reduces redundant data transfer.  
-- **Rate Limiting** — protect upstream mock APIs.  
-- **Circuit Breakers** — ensure degraded mode resilience.  
-- **Prometheus Metrics** — for cache and latency insights.  
-- **Redis Cache** — replace in-memory cache for distributed deployments.
+## 🧪 Testing
+
+### Run All Tests
+
+```powershell
+# From repository root
+dotnet test
+```
+
+### Test Coverage
+
+```
+✅ 51 tests passing (100%)
+```
+
+### Test Categories
+
+1. **TransactionsControllerTests** (15 tests)
+   - Parameter validation
+   - Pagination
+   - Error handling
+   - Response headers
+
+2. **TransactionServiceTests** (18 tests)
+   - Aggregation logic
+   - Caching behavior
+   - Filtering
+   - Concurrent bank calls
+
+3. **AuthMiddlewareTests** (10 tests)
+   - API key validation
+   - Excluded paths
+   - Error responses
+
+4. **TransactionCacheTests** (8 tests)
+   - Cache operations
+   - TTL behavior
+   - Thread safety
+
+### Run Specific Tests
+
+```powershell
+# Run only controller tests
+dotnet test --filter FullyQualifiedName~TransactionsControllerTests
+
+# Run with detailed output
+dotnet test --verbosity detailed
+```
 
 ---
 
-## ✅ Summary
+## 📁 Project Structure
 
-This architecture demonstrates **SE3-level design maturity**:
-- Scalable and resilient structure.  
-- Clear separation of concerns.  
-- Production-ready operational visibility.  
-- Extensible foundation for integrating real banking APIs or third-party data sources.
-
----
-
-## 💡 Design Rationale
-
-This section explains the key design decisions behind the **Transaction Aggregation API** and how they align with production-grade, SE3-level engineering principles.
-
----
-
-### **1. Modular, Layered Architecture**
-The project is intentionally structured into clear layers — API, Application, Integration, and Infrastructure — to ensure high cohesion and low coupling.  
-Each layer serves a single purpose:
-- **API Layer:** Handles routing, validation, authentication, and consistent response formatting.
-- **Application Layer:** Implements aggregation, filtering, pagination, and caching logic.
-- **Integration Layer:** Encapsulates communication with external mock bank APIs.
-- **Infrastructure Layer:** Provides cross-cutting concerns like caching, resilience, and observability.
-
-This separation makes the system maintainable, testable, and easy to extend with new data sources or caching strategies.
-
----
-
-### **2. Caching Strategy**
-Caching was introduced to improve performance and resilience:
-- **Motivation:** Transaction data doesn’t change frequently, but external APIs are slow or rate-limited.
-- **Implementation:** A `TransactionCache` abstraction allows swapping between in-memory and distributed (Redis) caching without touching the service logic.
-- **TTL:** A configurable time-to-live (5–15 minutes) balances freshness with performance.
-- **Key Design:** Composite cache keys (`userId:dateRange:category:page`) prevent collisions and enable fine-grained cache reuse.
-
-This approach provides fast responses for repeated queries and shields upstream systems from redundant requests.
-
----
-
-### **3. Resilience with Polly**
-External APIs are simulated as unreliable. To handle transient failures gracefully:
-- **Retry Policy:** Retries transient errors with exponential backoff.
-- **Circuit Breaker:** Temporarily halts requests when a bank API repeatedly fails.
-- **Rate Limiting:** Prevents overload on slower mock systems.
-
-Using **Polly** introduces fault tolerance and aligns with real-world distributed system resilience patterns.
+```
+transaction-aggregation-api/
+├── TransactionAggregationApi.Api/          # Main API project
+│   ├── Controllers/                        # API endpoints
+│   │   ├── TransactionsController.cs       # Transaction endpoints
+│   │   └── MetricsController.cs            # Metrics endpoint
+│   ├── Services/                           # Business logic
+│   │   ├── ITransactionService.cs
+│   │   └── TransactionService.cs           # Aggregation & caching
+│   ├── Clients/                            # Bank API clients
+│   │   ├── IBankClient.cs
+│   │   ├── BankAClient.cs
+│   │   ├── BankBClient.cs
+│   │   └── BankCClient.cs
+│   ├── Infrastructure/                     # Cross-cutting concerns
+│   │   ├── ITransactionCache.cs
+│   │   └── TransactionCache.cs             # In-memory cache
+│   ├── Middleware/                         # Request pipeline
+│   │   └── AuthMiddleware.cs               # API key authentication
+│   ├── Models/                             # DTOs
+│   │   ├── TransactionDto.cs
+│   │   └── PagedResultDto.cs
+│   ├── Program.cs                          # Application entry point
+│   └── appsettings.json                    # Configuration
+│
+├── TransactionAggregationApi.Tests/        # Unit tests (xUnit)
+│   ├── TransactionsControllerTests.cs
+│   ├── TransactionServiceTests.cs
+│   ├── AuthMiddlewareTests.cs
+│   └── TransactionCacheTests.cs
+│
+├── docs/                                   # Architecture diagrams
+│   ├── transaction_aggregation_api_architecture_enhanced.png
+│   ├── transaction_aggregation_api_component_interaction.png
+│   └── transaction_aggregation_api_sequence_detailed.png
+│
+├── Dockerfile                              # Multi-stage production build
+├── docker-compose.yml                      # Docker orchestration
+├── .dockerignore                           # Docker build exclusions
+├── TransactionAggregationApi.sln           # Solution file
+└── README.md                               # This file
+```
 
 ---
 
-### **4. Parallel Aggregation for Performance**
-The aggregation layer fetches data from all mock bank systems concurrently using `Task.WhenAll()`.  
-Benefits:
-- Minimizes total response time compared to sequential calls.
-- Allows future scalability (e.g., dozens of providers).
-- Keeps the service responsive under load.
+## 🏭 Production Considerations
 
-Each bank client implements a shared interface so new integrations can be added with minimal code changes.
+This project implements production-grade patterns and practices:
+
+### ✅ Implemented
+
+- **Security**
+  - API key authentication with secure header transmission
+  - Input validation and sanitization
+  - Non-root Docker user (app user)
+  - Read-only filesystem support
+
+- **Performance**
+  - Multi-stage Docker builds (Alpine, ~110MB)
+  - Layer caching optimization
+  - In-memory caching with configurable TTL
+  - Concurrent API calls
+
+- **Resilience**
+  - Retry policies with exponential backoff
+  - Circuit breaker for failing dependencies
+  - Timeout policies
+  - Graceful degradation
+
+- **Observability**
+  - Structured logging with correlation IDs
+  - Health check endpoint
+  - Metrics endpoint (cache stats, request counts)
+  - Comprehensive error messages
+
+- **Code Quality**
+  - 51 unit tests with Moq
+  - XML documentation comments
+  - Clean architecture (separation of concerns)
+  - SOLID principles
+
+### 🔮 Future Enhancements (Production Roadmap)
+
+**High Priority:**
+- [ ] Migrate to **Redis** for distributed caching
+- [ ] Implement **JWT/OAuth2** authentication
+- [ ] Add **rate limiting** (per API key)
+- [ ] Set up **Application Insights** / OpenTelemetry
+- [ ] Add **integration tests** with TestContainers
+
+**Medium Priority:**
+- [ ] Implement **CQRS** pattern for read/write separation
+- [ ] Add **background jobs** for cache warming
+- [ ] Set up **CI/CD pipeline** (GitHub Actions)
+- [ ] Add **API versioning** (/v1, /v2)
+- [ ] Implement **request throttling**
+
+**Nice to Have:**
+- [ ] GraphQL endpoint for flexible queries
+- [ ] WebSocket support for real-time updates
+- [ ] Multi-tenancy support
+- [ ] Advanced analytics dashboard
+- [ ] Internationalization (i18n)
 
 ---
 
-### **5. Consistent JSON Schema**
-Different bank APIs may return varied formats.  
-To ensure consistency:
-- All external data is normalized into a unified **Transaction DTO**.
-- A consistent response schema simplifies client-side parsing and reduces integration friction.
-- Pagination and filtering logic are standardized across all sources.
+## 📝 Design Decisions
 
-This ensures predictability and makes the API easy to consume by other systems or front-end teams.
+### Why Mock Bank Clients?
+The brief requires aggregation from "multiple mock banking systems". Each client (`BankAClient`, `BankBClient`, `BankCClient`) simulates realistic scenarios:
+- Variable network latency (100-800ms)
+- Transient failures (10% chance) to test resilience
+- Different transaction patterns per bank
 
----
+### Why In-Memory Cache?
+For simplicity and zero dependencies in development. The architecture is **Redis-ready**:
+```csharp
+// Current: services.AddMemoryCache();
+// Future:  services.AddStackExchangeRedisCache(options => { ... });
+```
 
-### **6. Observability & Metrics**
-The service tracks:
-- Cache hit/miss ratios
-- Request latency
-- Retry counts
-- Error rates
+### Why API Key Authentication?
+The brief specifies "simple authentication". API keys are:
+- Simple to implement and test
+- Suitable for server-to-server communication
+- Easy to rotate and revoke
+- Production note: Migrate to JWT/OAuth2 for user-facing scenarios
 
-Metrics can be exposed through `/api/admin/metrics` or integrated with Prometheus.  
-This makes the service transparent and easier to monitor in production environments.
-
----
-
-### **7. Authentication Simplicity**
-A lightweight **API key middleware** protects endpoints without over-engineering OAuth2 or JWT.  
-This meets the brief’s requirement for simple authentication while keeping the door open for future extension.
-
----
-
-### **8. Extensibility**
-Key areas are designed for easy evolution:
-- Swap `MemoryCache` → Redis without changing business logic.
-- Add new bank integrations by implementing a new client class.
-- Extend observability by plugging in third-party metrics exporters.
-
-This future-proofs the solution for real-world adoption.
+### Why Polly for Resilience?
+Polly is the industry-standard .NET library for:
+- Transient fault handling
+- Retry with exponential backoff
+- Circuit breaker pattern
+- Production-proven reliability
 
 ---
-
-### ✅ **Summary**
-Every design choice — from caching and Polly policies to normalization and metrics — was made to balance **performance**, **resilience**, and **maintainability**.  
-The result is a system that behaves predictably under load, degrades gracefully under failure, and can scale horizontally with minimal friction.
-
