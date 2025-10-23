@@ -139,7 +139,7 @@ The API aggregates transactions from three mock banking systems (Bank A, B, C) t
 ### Prerequisites
 
 **Option 1: Docker (Recommended)**
-- [Docker Desktop](https://www.docker.com/products/docker-desktop) (Windows/Mac/Linux)
+- [Rancher Desktop](https://rancherdesktop.io/) (Windows/Mac/Linux)
 
 **Option 2: Local Development**
 - [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
@@ -195,7 +195,7 @@ dotnet build
 cd TransactionAggregationApi.Api
 dotnet run
 
-# 5. Access the API at http://localhost:5000 (or https://localhost:5001)
+# 5. Access the API at http://localhost:8080
 ```
 
 **Default API Key**: `prod-api-key-change-in-production` (set in appsettings.json)

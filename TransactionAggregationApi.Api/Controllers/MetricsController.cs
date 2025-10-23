@@ -14,7 +14,7 @@ namespace TransactionAggregationApi.Api.Controllers;
 public class MetricsController : ControllerBase
 {
     private readonly ILogger<MetricsController> _logger;
-    private readonly IMemoryCache _cache;
+    private readonly IMemoryCache? _cache;
     private static readonly DateTime _startTime = DateTime.UtcNow;
     private static long _requestCount = 0;
 
@@ -22,11 +22,11 @@ public class MetricsController : ControllerBase
     /// Initializes a new instance of the MetricsController.
     /// </summary>
     /// <param name="logger">Logger for diagnostic information</param>
-    /// <param name="cache">Memory cache for metrics collection</param>
-    public MetricsController(ILogger<MetricsController> logger, IMemoryCache cache)
+    /// <param name="cache">Memory cache for metrics collection (optional - only available when using Memory cache provider)</param>
+    public MetricsController(ILogger<MetricsController> logger, IMemoryCache? cache = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+        _cache = cache; // Optional - will be null when using Redis cache
     }
 
     /// <summary>
@@ -89,10 +89,19 @@ public class MetricsController : ControllerBase
             var gcMemoryMB = GC.GetTotalMemory(false) / 1024.0 / 1024.0;
 
             // Get cache entry count (MemoryCache specific)
+            // Note: Only available when using Memory cache provider, not Redis
             int? cacheEntryCount = null;
-            if (_cache is MemoryCache memoryCache)
+            string cacheProvider = "unknown";
+            
+            if (_cache != null && _cache is MemoryCache memoryCache)
             {
                 cacheEntryCount = memoryCache.Count;
+                cacheProvider = "memory";
+            }
+            else if (_cache == null)
+            {
+                // Redis or other distributed cache - count not available via this controller
+                cacheProvider = "redis/distributed";
             }
 
             var metrics = new
@@ -110,7 +119,8 @@ public class MetricsController : ControllerBase
                 cache = new
                 {
                     entryCount = cacheEntryCount,
-                    status = cacheEntryCount.HasValue ? "healthy" : "unknown"
+                    provider = cacheProvider,
+                    status = cacheEntryCount.HasValue ? "healthy" : "redis/distributed"
                 },
                 process = new
                 {
