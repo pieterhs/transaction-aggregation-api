@@ -69,12 +69,38 @@ builder.Services.AddSwaggerGen(options =>
 // Add Health Checks
 builder.Services.AddHealthChecks();
 
-// Add memory cache (thread-safe, singleton by default)
-builder.Services.AddMemoryCache();
+// Configure cache provider based on configuration (Memory or Redis)
+var cacheProvider = builder.Configuration.GetValue<string>("Cache:Provider") ?? "Memory";
 
-// Register TransactionCache as scoped
-// TODO: When migrating to Redis, use AddStackExchangeRedisCache() or AddDistributedMemoryCache()
-builder.Services.AddScoped<ITransactionCache, TransactionCache>();
+if (cacheProvider.Equals("Redis", StringComparison.OrdinalIgnoreCase))
+{
+    // Configure Redis distributed cache
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = builder.Configuration["Cache:Redis:Configuration"] ?? "localhost:6379";
+        options.InstanceName = "txnagg:";
+    });
+    
+    // Register Redis-based transaction cache
+    builder.Services.AddScoped<ITransactionCache, RedisTransactionCache>();
+    
+    builder.Services.AddLogging(logging =>
+    {
+        logging.AddConsole();
+    });
+    
+    Console.WriteLine($"[Cache] Using Redis distributed cache: {builder.Configuration["Cache:Redis:Configuration"]}");
+}
+else
+{
+    // Use in-memory cache (default)
+    builder.Services.AddMemoryCache();
+    
+    // Register in-memory transaction cache
+    builder.Services.AddScoped<ITransactionCache, TransactionCache>();
+    
+    Console.WriteLine("[Cache] Using in-memory cache");
+}
 
 // Register TransactionService with interface for better testability
 builder.Services.AddScoped<ITransactionService, TransactionService>();

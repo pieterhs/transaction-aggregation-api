@@ -46,13 +46,10 @@ services:
       - Logging__LogLevel__Default=Information
       - Logging__LogLevel__Microsoft.AspNetCore=Warning
       
-      # Cache Configuration (In-Memory for now, Redis support ready)
-      - Cache__DefaultExpirationMinutes=10
-      - Cache__SlidingExpiration=true
-      
-      # Future: Redis Configuration (when implementing IDistributedCache)
-      # - ConnectionStrings__Redis=redis:6379
-      # - Cache__Provider=Redis
+      # Cache Configuration - Redis distributed cache
+      - Cache__Provider=Redis
+      - Cache__DefaultTtlMinutes=10
+      - Cache__Redis__Configuration=redis:6379
       
       # Bank API Configuration (Mock endpoints)
       - BankA__BaseUrl=https://banka-api.example.com
@@ -93,7 +90,7 @@ services:
           memory: 256M
 
   # ============================================================
-  # Redis - Distributed Cache (Future Enhancement)
+  # Redis - Distributed Cache
   # ============================================================
   redis:
     container_name: transaction-redis

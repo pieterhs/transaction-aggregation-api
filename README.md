@@ -40,7 +40,8 @@ A production-grade REST API that aggregates customer transaction data from multi
 
 ### Additional Production Features
 - 🚀 **Performance**
-  - In-memory caching with TTL (10 minutes default, Redis-ready)
+  - **Dual cache support**: In-memory cache OR Redis distributed cache (configurable)
+  - Redis caching with JSON serialization (10 minutes TTL default)
   - Concurrent bank API calls with `Task.WhenAll`
   - Optimized Docker layer caching
   
@@ -96,7 +97,8 @@ The API aggregates transactions from three mock banking systems (Bank A, B, C) t
          ▼
 ┌─────────────────────────────────┐
 │    TransactionCache             │
-│    (In-Memory / Redis)          │
+│    - In-Memory (Development)    │
+│    - Redis (Production)         │
 └─────────────────────────────────┘
          │
          ▼ (concurrent)
@@ -126,7 +128,7 @@ The API aggregates transactions from three mock banking systems (Bank A, B, C) t
 - **Documentation**: Swagger/OpenAPI
 - **Testing**: xUnit, Moq
 - **Resilience**: Polly (retry, circuit breaker, timeout)
-- **Caching**: IMemoryCache (with Redis support ready)
+- **Caching**: IMemoryCache + Redis (StackExchange.Redis)
 - **Containerization**: Docker, Docker Compose
 - **Logging**: Microsoft.Extensions.Logging
 
@@ -165,6 +167,8 @@ docker-compose up --build
 
 **API Key for Testing**: `dev-api-key-12345` (set in docker-compose.yml)
 
+**Cache Configuration**: Docker Compose uses **Redis** by default (see environment variables in docker-compose.yml)
+
 To stop:
 ```powershell
 docker-compose down
@@ -195,6 +199,13 @@ dotnet run
 ```
 
 **Default API Key**: `prod-api-key-change-in-production` (set in appsettings.json)
+
+**Cache Configuration**: Local development uses **in-memory cache** by default (see appsettings.Development.json)
+
+**To use Redis locally**:
+1. Start Redis: `docker run -d -p 6379:6379 redis:7-alpine`
+2. Update `appsettings.Development.json`: Set `"Cache:Provider": "Redis"`
+3. Run the API: `dotnet run`
 
 ---
 
@@ -388,7 +399,8 @@ transaction-aggregation-api/
 │   │   └── BankCClient.cs
 │   ├── Infrastructure/                     # Cross-cutting concerns
 │   │   ├── ITransactionCache.cs
-│   │   └── TransactionCache.cs             # In-memory cache
+│   │   ├── TransactionCache.cs             # In-memory cache
+│   │   └── RedisTransactionCache.cs        # Redis distributed cache
 │   ├── Middleware/                         # Request pipeline
 │   │   └── AuthMiddleware.cs               # API key authentication
 │   ├── Models/                             # DTOs
@@ -432,7 +444,9 @@ This project implements production-grade patterns and practices:
 - **Performance**
   - Multi-stage Docker builds (Alpine, ~110MB)
   - Layer caching optimization
-  - In-memory caching with configurable TTL
+  - **Redis distributed caching** with JSON serialization
+  - In-memory caching fallback for development
+  - Configurable TTL (default: 10 minutes)
   - Concurrent API calls
 
 - **Resilience**
@@ -456,13 +470,13 @@ This project implements production-grade patterns and practices:
 ### 🔮 Future Enhancements (Production Roadmap)
 
 **High Priority:**
-- [ ] Migrate to **Redis** for distributed caching
 - [ ] Implement **JWT/OAuth2** authentication
 - [ ] Add **rate limiting** (per API key)
 - [ ] Set up **Application Insights** / OpenTelemetry
 - [ ] Add **integration tests** with TestContainers
 
 **Medium Priority:**
+- [ ] Add **Redis Sentinel** for high availability
 - [ ] Implement **CQRS** pattern for read/write separation
 - [ ] Add **background jobs** for cache warming
 - [ ] Set up **CI/CD pipeline** (GitHub Actions)
@@ -486,11 +500,31 @@ The brief requires aggregation from "multiple mock banking systems". Each client
 - Transient failures (10% chance) to test resilience
 - Different transaction patterns per bank
 
-### Why In-Memory Cache?
-For simplicity and zero dependencies in development. The architecture is **Redis-ready**:
-```csharp
-// Current: services.AddMemoryCache();
-// Future:  services.AddStackExchangeRedisCache(options => { ... });
+### Cache Strategy: Dual Implementation
+The API supports **both in-memory and Redis caching** via configuration:
+
+**In-Memory Cache** (Development):
+- Zero dependencies, fast local development
+- Configured in `appsettings.Development.json`
+
+**Redis Cache** (Production):
+- Distributed caching for horizontal scaling
+- Configured via environment variables in `docker-compose.yml`
+- Uses `Microsoft.Extensions.Caching.StackExchangeRedis`
+- JSON serialization with System.Text.Json
+- AOF persistence enabled
+
+**Switching between providers**:
+```json
+{
+  "Cache": {
+    "Provider": "Memory",  // or "Redis"
+    "DefaultTtlMinutes": 10,
+    "Redis": {
+      "Configuration": "localhost:6379"
+    }
+  }
+}
 ```
 
 ### Why API Key Authentication?
