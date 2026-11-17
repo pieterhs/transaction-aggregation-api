@@ -1,6 +1,6 @@
 # Transaction Aggregation API
 
-[![.NET 8](https://img.shields.io/badge/.NET-8.0-blue)](https://dotnet.microsoft.com/)
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-blue)](https://dotnet.microsoft.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-51%20passing-success)](https://github.com/pieterhs/transaction-aggregation-api)
 
@@ -122,8 +122,8 @@ The API aggregates transactions from three mock banking systems (Bank A, B, C) t
 
 ## 🛠️ Technology Stack
 
-- **Framework**: .NET 8.0 (LTS)
-- **Language**: C# 12
+- **Framework**: .NET 10.0 (LTS)
+- **Language**: C# 14
 - **API**: ASP.NET Core Web API
 - **Documentation**: Swagger/OpenAPI
 - **Testing**: xUnit, Moq
@@ -142,7 +142,7 @@ The API aggregates transactions from three mock banking systems (Bank A, B, C) t
 - [Rancher Desktop](https://rancherdesktop.io/) (Windows/Mac/Linux)
 
 **Option 2: Local Development**
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - Any IDE (Visual Studio 2022, VS Code, Rider)
 
 ---

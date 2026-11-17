@@ -2,7 +2,7 @@
 # Docker Compose - Transaction Aggregation API
 # ============================================================
 # Services:
-#   - api: .NET 8 Web API (Transaction Aggregation)
+#   - api: .NET 10 Web API (Transaction Aggregation)
 #   - redis: Redis 7 (Future: Distributed caching)
 #
 # Usage:

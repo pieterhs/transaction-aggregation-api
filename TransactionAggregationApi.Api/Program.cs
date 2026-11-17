@@ -1,7 +1,7 @@
 using System.Reflection;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
+using Microsoft.Extensions.Http.Resilience;
 using Polly;
-using Polly.Extensions.Http;
 using TransactionAggregationApi.Api.Clients;
 using TransactionAggregationApi.Api.Infrastructure;
 using TransactionAggregationApi.Api.Middleware;
@@ -50,18 +50,11 @@ builder.Services.AddSwaggerGen(options =>
         Description = "API Key authentication. Enter your API key in the field below."
     });
 
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
     {
         {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "ApiKey"
-                }
-            },
-            Array.Empty<string>()
+            new OpenApiSecuritySchemeReference("ApiKey", document),
+            new List<string>()
         }
     });
 });
@@ -105,46 +98,52 @@ else
 // Register TransactionService with interface for better testability
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 
-// Configure Polly policies for HttpClient
-// Retry policy: 3 retries with exponential backoff
-var retryPolicy = HttpPolicyExtensions
-    .HandleTransientHttpError()
-    .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+void AddBankResilience(IHttpClientBuilder clientBuilder)
+{
+    clientBuilder.AddResilienceHandler("bank-resilience", pipeline =>
+    {
+        pipeline.AddRetry(new HttpRetryStrategyOptions
+        {
+            MaxRetryAttempts = 3,
+            Delay = TimeSpan.FromSeconds(2),
+            BackoffType = DelayBackoffType.Exponential,
+            UseJitter = false
+        });
 
-// Circuit breaker: Open after 5 consecutive failures, reset after 30s
-var circuitBreakerPolicy = HttpPolicyExtensions
-    .HandleTransientHttpError()
-    .CircuitBreakerAsync(
-        handledEventsAllowedBeforeBreaking: 5,
-        durationOfBreak: TimeSpan.FromSeconds(30));
+        pipeline.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
+        {
+            FailureRatio = 1.0,
+            MinimumThroughput = 5,
+            SamplingDuration = TimeSpan.FromSeconds(30),
+            BreakDuration = TimeSpan.FromSeconds(30)
+        });
+    });
+}
 
-// Register Bank Clients with HttpClient and Polly resilience policies
-builder.Services.AddHttpClient<IBankClient, BankAClient>(client =>
+// Register Bank Clients with HttpClient resilience policies
+var bankAClient = builder.Services.AddHttpClient<IBankClient, BankAClient>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("BankA:BaseUrl") ?? "https://api.banka.com");
     client.Timeout = TimeSpan.FromSeconds(30);
     client.DefaultRequestHeaders.Add("User-Agent", "TransactionAggregationAPI/1.0");
-})
-.AddPolicyHandler(retryPolicy)
-.AddPolicyHandler(circuitBreakerPolicy);
+});
+AddBankResilience(bankAClient);
 
-builder.Services.AddHttpClient<IBankClient, BankBClient>(client =>
+var bankBClient = builder.Services.AddHttpClient<IBankClient, BankBClient>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("BankB:BaseUrl") ?? "https://api.bankb.eu");
     client.Timeout = TimeSpan.FromSeconds(30);
     client.DefaultRequestHeaders.Add("User-Agent", "TransactionAggregationAPI/1.0");
-})
-.AddPolicyHandler(retryPolicy)
-.AddPolicyHandler(circuitBreakerPolicy);
+});
+AddBankResilience(bankBClient);
 
-builder.Services.AddHttpClient<IBankClient, BankCClient>(client =>
+var bankCClient = builder.Services.AddHttpClient<IBankClient, BankCClient>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("BankC:BaseUrl") ?? "https://api.bankc.asia");
     client.Timeout = TimeSpan.FromSeconds(30);
     client.DefaultRequestHeaders.Add("User-Agent", "TransactionAggregationAPI/1.0");
-})
-.AddPolicyHandler(retryPolicy)
-.AddPolicyHandler(circuitBreakerPolicy);
+});
+AddBankResilience(bankCClient);
 
 var app = builder.Build();
 
@@ -197,11 +196,7 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
     }
 })
 .WithName("HealthCheck")
-.WithOpenApi(operation =>
-{
-    operation.Summary = "Health check endpoint";
-    operation.Description = "Returns the health status of the API and its dependencies. Used by monitoring systems.";
-    return operation;
-});
+.WithSummary("Health check endpoint")
+.WithDescription("Returns the health status of the API and its dependencies. Used by monitoring systems.");
 
 app.Run();

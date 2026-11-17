@@ -11,7 +11,7 @@
 # ============================================================
 # Stage 1: Build
 # ============================================================
-FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 
 # Install necessary build tools
 RUN apk add --no-cache bash
@@ -50,7 +50,7 @@ RUN dotnet publish -c Release -o /out --no-restore --no-build /p:UseAppHost=fals
 # ============================================================
 # Stage 3: Runtime
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 
 # Install necessary packages
 # - curl: for health checks
